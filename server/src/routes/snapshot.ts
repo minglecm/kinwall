@@ -1,4 +1,3 @@
-import { readSchoolLunches } from '../school-menus.ts';
 import { schoolworkVisibleSql } from '../schoolwork.ts';
 import { schoolworkOff } from '../school-days.ts';
 import { goalProgressFor } from '../chore-goals.ts';
@@ -167,8 +166,6 @@ snapshotRoutes.openapi(
     const weather = weatherIn(await getWeather(db, now), lang);
 
     const meals = settings.features.meals ? await readMeals(db, today, last) : [];
-    const schoolLunches = await readSchoolLunches(db, today, last, meals, settings.features);
-    const memberMeals = meals.filter(m => !m.eaterIds.length || m.eaterIds.includes(memberId) || m.assigneeMemberId === memberId);
     const body: Snapshot = {
       greeting: isBirthday ? words(lang).t('Happy birthday, {name}! 🎉', { name: member.name }) : greetingFor(member.name, hour, lang),
       member,
@@ -181,8 +178,7 @@ snapshotRoutes.openapi(
       chores,
       items,
       birthdays: birthdays.filter((b) => b.date <= to),
-      meals: memberMeals.filter((m) => m.date <= to),
-      schoolLunches: schoolLunches.filter(m => m.date <= to && m.eaterIds.includes(memberId)),
+      meals: meals.filter((m) => m.date <= to),
       tomorrow:
         range === 'day'
           ? {
@@ -190,8 +186,7 @@ snapshotRoutes.openapi(
               events: events.filter((ev) => ev.date === tomorrow),
               items: itemRows.filter((r) => r.due_date === tomorrow).map(toItem),
               birthdays: birthdays.filter((b) => b.date === tomorrow),
-              meals: memberMeals.filter((m) => m.date === tomorrow),
-              schoolLunches: schoolLunches.filter(m => m.date === tomorrow && m.eaterIds.includes(memberId)),
+              meals: meals.filter((m) => m.date === tomorrow),
             }
           : null,
       checkedIn: checkInRes.results.length > 0,
@@ -307,7 +302,6 @@ snapshotRoutes.openapi(
     const weather = weatherIn(await getWeather(db, now), lang);
 
     const meals = settings.features.meals ? await readMeals(db, today, to) : [];
-    const schoolLunches = await readSchoolLunches(db, today, to, meals, settings.features);
     // Borrowed library books due back (routes/library.ts), on their day; an overdue one stays on today.
     const booksDue = settings.features.trackersReading
       ? (await db.prepare('SELECT id, title, borrowed_from, due_on FROM library_books WHERE borrowed_from IS NOT NULL AND returned_on IS NULL AND due_on <= ? ORDER BY due_on, title').bind(to).all<{ id: string; title: string; borrowed_from: string; due_on: string }>()).results
@@ -327,7 +321,6 @@ snapshotRoutes.openapi(
       overdueChores,
       birthdays: birthdays.filter((b) => b.date <= to),
       meals: meals.filter((m) => m.date <= to),
-      schoolLunches,
       booksDue,
     };
     return c.json(body, 200);

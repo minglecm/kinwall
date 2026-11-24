@@ -323,7 +323,3 @@ medication, journal or check-in data is read. See [REST API](rest-api.md#weekly-
 (default `true`). Full access only. It removes just that missed date from the late list,
 without completing the chore or awarding points. Use `dismissed: false` to undo. `get_board`
 leaves dismissed dates out of `overdueChores`; the chore's schedule and history stay unchanged.
-
-### School lunches in the meal plan
-
-`list_meals` returns saved `meals` and a separate `schoolLunches` array of read-only school-menu defaults. These defaults have no meal ID and cannot be passed to meal-editing tools. To replace one, create an ordinary lunch on that date with the relevant `eaterIds`. Existing saved-meal behavior stays the same. `get_snapshot` also includes applicable school defaults. External menu importers use the [REST API](rest-api.md#school-menu-imports); Kinwall has no school website or PDF parser.

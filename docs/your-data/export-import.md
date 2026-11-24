@@ -68,5 +68,3 @@ The [inbox](../using/inbox.md) is backed up as `inboxItems`: each thought's word
 [Plan the week](../using/weekly-planning.md) is backed up as `weeklyPlans`: each week's shared draft and the meals and to-dos it added. Import replaces the plan for each week in the file and leaves other weeks alone. Older exports without it remain valid.
 
 Scheduled family announcements are backed up with their titles, details, UTC visibility windows, emphasis, ids, and creation/update times. Import restores them by id without deleting other announcements; expired messages stay expired unless you change their schedule. Older exports without announcements remain valid.
-
-School menus include their definitions, published days, source links and school-wide menu settings. Their IDs survive export/import so an external app can keep targeting the same menu after a move. Computed school lunch defaults are not saved meals and are not exported. Older exports without menu fields remain compatible.

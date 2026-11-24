@@ -237,48 +237,6 @@ curl -X PUT https://kinwall.example/api/calendars/<id>/events/sync \
   -d '{"source":"ha:hellofresh","from":"2026-09-27","to":"2026-11-08","events":[{"externalId":"delivery-123","title":"📦 HelloFresh delivery","start":"2026-10-07T08:00:00-04:00","end":"2026-10-07T20:00:00-04:00","allDay":false,"busy":false,"notes":"Tacos, Pasta\n2 of 3 meals picked"}]}'
 ```
 
-## School menu imports
-
-School menu data is provider-independent. Kinwall stores normalized lunch text and dates; an external app handles source fetching, parsing, scheduling and failures. School must be enabled. Parents create an empty menu in **School → Menus**, then copy its ID from **Manage menu** for the external app. An API can also create menu definitions. Source links are attribution only and are never fetched.
-
-| Method | Route | Behavior |
-|---|---|---|
-| `GET`, `POST` | `/api/school/menus` | List active menus (`schoolContactId` filters; `archived=all` includes archived) or create `{ schoolContactId, name, sourceName?, sourceUrl? }`. |
-| `GET`, `PATCH`, `DELETE` | `/api/school/menus/{id}` | Read/edit metadata, set `archived`, or delete the menu and its days. Reassigning or archiving a selected menu disconnects its Meals default. |
-| `GET` | `/api/school/menus/{id}/entries?from=&to=` | Dated entries, with an inclusive range of at most 367 days. |
-| `PUT` | `/api/school/menus/{id}/entries/sync` | Atomically replace entries in the supplied inclusive window. |
-| `GET`, `PUT` | `/api/school/menu-settings/{schoolContactId}` | Read/set `{ lunchMenuId, useForMeals }`; selection must be an active menu belonging to that school. Starts with no menu and `false`. |
-| `GET` | `/api/meal-plan?from=&to=` | `{ meals, schoolLunches }`: saved meals plus separate read-only school defaults. |
-
-Writes require a full-access key. Wall and child devices may read these routes. School routes return 404 while School is disabled, preserving their data. `/api/meal-plan` keeps returning saved meals with `schoolLunches: []` while School or Meals is disabled.
-
-An importer sends one named menu's complete contents for its declared window:
-
-```json
-{
-  "from": "2026-11-23",
-  "to": "2026-11-27",
-  "entries": [
-    {
-      "date": "2026-11-23",
-      "availability": "available",
-      "title": "Chicken tenders or pizza",
-      "description": "Carrots, fruit and milk.",
-      "sourceUrl": "https://example.org/menu"
-    },
-    { "date": "2026-11-26", "availability": "not_served" }
-  ]
-}
-```
-
-Use `curl -X PUT "$KINWALL_URL/api/school/menus/$MENU_ID/entries/sync" -H "Authorization: Bearer $KINWALL_KEY" -H "Content-Type: application/json" --data-binary @menu.json`.
-
-Entries are keyed by menu ID and date; source-specific IDs stay in the external app. An available entry requires a title (at most 200 characters). Descriptions are optional plain multiline text (at most 10,000 characters); links are optional HTTP(S) URLs. `availability` defaults to `available`. Dates must be real `YYYY-MM-DD` dates, unique and inside the ordered window. A batch has at most 367 entries and uses the normal 2 MB request limit; import smaller windows when needed.
-
-The result is `{ created, updated, deleted, lastSyncedAt }`. Repeating identical data changes no entries; `lastSyncedAt` records successful receipt. Corrections retain entry identity. Omitted dates are removed only inside the requested menu/window. `entries: []` intentionally clears that window; fetch or parse failures should send no request. Validation failures write nothing. An absent date means unknown/not published, distinct from `not_served`. Neither classifies a school day.
-
-`SchoolLunchFallback` has `origin: "school_menu"`, `menuId`, `schoolContactId`, `schoolName`, `menuName`, `date`, `slot: "lunch"`, `title`, `description`, source fields, `lastSyncedAt` and nonempty `eaterIds`. It has no saved-meal ID. `/api/meals` and meal write routes keep their existing shapes; use `/api/meal-plan` when displaying defaults too. Board and snapshot responses add `schoolLunches`, including tomorrow's snapshot. Explicit lunches take precedence by **eater**, not cook; an empty eater list means Everyone. Defaults require enrollment, an enabled school connection, an available entry and a school/early-release day. They create no meals, groceries, events or timed reminders.
-
 ## Calling from a browser
 
 CORS is off by default (same origin only). To allow browser-based automations on other origins, set `CORS_ORIGINS` to a comma-separated list.

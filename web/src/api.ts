@@ -1,4 +1,3 @@
-import type { SchoolMenu, SchoolMenuInput, SchoolMenuEntry, SchoolMenuSettings, SchoolLunchFallback } from './school-menus.ts'
 import type { PlanningDraft, WeeklyPlanning } from './weekly-planning.ts'
 import type { Announcement, AnnouncementInput, Announcements } from './announcements.ts';
 import type { InboxItem, InboxSort } from './inbox.ts';
@@ -280,12 +279,6 @@ async function send<T>(path: string, opts: RequestInit & { useAdmin?: boolean })
     const { mockWeeklyPlanningRequest } = await import('./mock-weekly-planning.ts')
     return mockWeeklyPlanningRequest(path, opts) as Promise<T>
   }
-  if (MOCK && /^api\/meal-plan([/?]|$)/.test(path)) {
-    const [{ mockMeals }, { mockSchoolLunches }] = await Promise.all([import('./mock-meals.ts'), import('./mock-school.ts')])
-    const q = new URL(path, 'https://demo.invalid/').searchParams, from = q.get('from')!, to = q.get('to')!
-    const meals = mockMeals(from, to)
-    return { meals, schoolLunches: await mockSchoolLunches(from, to, meals) } as T
-  }
   if (MOCK && /^api\/(meals|recipes|restaurants)([/?]|$)/.test(path)) {
     const { mockMealRequest } = await import('./mock-meals.ts')
     return mockMealRequest(path, opts) as Promise<T>
@@ -490,14 +483,6 @@ export const api = {
   decidePileItem: (id: string, keep: boolean) => post<Outing>(`api/outing-feeds/pile/${encodeURIComponent(id)}`, { keep }),
   /** Save to Outings (POST /api/share kind outing): adds it, or fills in the one with the same name that day. */
   saveToOutings: (outing: OutingInput & { title: string }) => post<{ summary: string; link: string }>('api/share', { kind: 'outing', outing }),
-  getSchoolMenus: (schoolContactId?: string, archived = false) => get<SchoolMenu[]>(['api/school/menus', new URLSearchParams({ ...(schoolContactId ? { schoolContactId } : {}), ...(archived ? { archived: 'all' } : {}) }).toString()].join('?')),
-  createSchoolMenu: (input: SchoolMenuInput) => post<SchoolMenu>('api/school/menus', input),
-  updateSchoolMenu: (id: string, input: Partial<SchoolMenuInput> & { archived?: boolean }) => patch<SchoolMenu>(['api/school/menus', encodeURIComponent(id)].join('/'), input),
-  deleteSchoolMenu: (id: string) => del(['api/school/menus', encodeURIComponent(id)].join('/')),
-  getSchoolMenuEntries: (id: string, from: string, to: string) => get<SchoolMenuEntry[]>([['api/school/menus', encodeURIComponent(id), 'entries'].join('/'), new URLSearchParams({ from, to }).toString()].join('?')),
-  getSchoolMenuSettings: (schoolContactId: string) => get<SchoolMenuSettings>(['api/school/menu-settings', encodeURIComponent(schoolContactId)].join('/')),
-  putSchoolMenuSettings: (schoolContactId: string, input: Omit<SchoolMenuSettings, 'schoolContactId'>) => put<SchoolMenuSettings>(['api/school/menu-settings', encodeURIComponent(schoolContactId)].join('/'), input),
-  getMealPlan: (from: string, to: string) => get<{ meals: Meal[]; schoolLunches: SchoolLunchFallback[] }>(['api/meal-plan', new URLSearchParams({ from, to }).toString()].join('?')),
   getMeals: (from: string, to: string) => get<Meal[]>(`api/meals?${new URLSearchParams({ from, to })}`),
   createMeal: (body: MealInput) => post<Meal>('api/meals', body),
   updateMeal: (id: string, body: Partial<MealInput> & { refreshRecipe?: boolean }) => patch<Meal>(`api/meals/${encodeURIComponent(id)}`, body),
@@ -569,16 +554,11 @@ export const api = {
   pictureUrl: (path: string) => MOCK ? path : mediaUrl(path.replace(/^\//, '')),
 
   getSnapshot: (memberId: string, range: 'day' | 'week') =>
-    MOCK ? Promise.all([mock.getSnapshot(memberId, range), import('./mock-meals.ts'), import('./mock-school.ts')]).then(async ([s, { mockMeals }, { mockSchoolLunches }]) => {
-      const personal = (meals: Meal[]) => meals.filter(m => !m.eaterIds.length || m.eaterIds.includes(memberId) || m.assigneeMemberId === memberId)
-      const meals = mockMeals(s.from, s.to)
-      const tomorrowMeals = s.tomorrow ? mockMeals(s.tomorrow.date, s.tomorrow.date) : []
-      return { ...s, meals: personal(meals), schoolLunches: (await mockSchoolLunches(s.from, s.to, meals)).filter(l => l.eaterIds.includes(memberId)),
-        tomorrow: s.tomorrow && { ...s.tomorrow, meals: personal(tomorrowMeals), schoolLunches: (await mockSchoolLunches(s.tomorrow.date, s.tomorrow.date, tomorrowMeals)).filter(l => l.eaterIds.includes(memberId)) } }
-    })
+    MOCK ? Promise.all([mock.getSnapshot(memberId, range), import('./mock-meals.ts')]).then(([s, { mockMeals }]) =>
+      ({ ...s, meals: mockMeals(s.from, s.to), tomorrow: s.tomorrow && { ...s.tomorrow, meals: mockMeals(s.tomorrow.date, s.tomorrow.date) } }))
     : get<Snapshot>(`api/snapshot?member=${encodeURIComponent(memberId)}&range=${range}`),
   // Server-side lookup (Open-Meteo): the browser never talks to the geocoder itself.
-  getBoard: (days = 7) => MOCK ? Promise.all([mock.getBoard(days), import('./mock-meals.ts')]).then(async ([b, { mockMeals }]) => { const { mockSchoolLunches } = await import('./mock-school.ts'); const meals = mockMeals(b.today, b.to); return { ...b, meals, schoolLunches: await mockSchoolLunches(b.today, b.to, meals) } }) : get<Board>(`api/board?days=${days}`),
+  getBoard: (days = 7) => MOCK ? Promise.all([mock.getBoard(days), import('./mock-meals.ts')]).then(([b, { mockMeals }]) => ({ ...b, meals: mockMeals(b.today, b.to) })) : get<Board>(`api/board?days=${days}`),
   // `query`: a display's own sources and categories (tidbitQuery); none = the family's.
   getTidbits: (query?: string) => MOCK ? mock.getTidbits() : get<OnlineTidbits>(query ? `api/tidbits?${query}` : 'api/tidbits'),
 

@@ -22,7 +22,7 @@ import { ORDER_TYPE_LABEL } from './orders.ts'
 import { Face } from './Face'
 
 /** Where a new meal starts. recipe, restaurant or title (a poll's winner: Polls.tsx) also prefill an existing meal. */
-export type MealDraft = { date: string; slot: MealSlot; eaterIds?: string[]; recipe?: Recipe; restaurant?: Restaurant; title?: string }
+export type MealDraft = { date: string; slot: MealSlot; recipe?: Recipe; restaurant?: Restaurant; title?: string }
 
 /** Small overlapping avatars of who's eating (planner card, Board, meal sheet). */
 export function EaterAvatars({ ids, members, label }: { ids: string[]; members: Member[]; label?: string }) {
@@ -45,7 +45,7 @@ export default function MealSheet({ meal, initial, recipes, admin, owner, me = n
     date: meal?.date ?? initial.date, slot: meal?.slot ?? initial.slot, title: meal?.title ?? initial.recipe?.name ?? initial.restaurant?.name ?? '',
     mealKind: meal?.mealKind ?? (initial.recipe ? 'recipe' : initial.restaurant ? 'dining_out' : 'freeform'), recipeId: meal?.recipeId ?? initial.recipe?.id ?? null,
     restaurantId: meal?.restaurantId ?? initial.restaurant?.id ?? null, orderType: meal?.orderType ?? (initial.restaurant ? 'pickup' : null),
-    servings: meal?.servings ?? initial.recipe?.defaultServings ?? (initial.eaterIds?.length || 4), assigneeMemberId: meal?.assigneeMemberId ?? null, eaterIds: meal?.eaterIds ?? initial.eaterIds ?? [],
+    servings: meal?.servings ?? initial.recipe?.defaultServings ?? 4, assigneeMemberId: meal?.assigneeMemberId ?? null, eaterIds: meal?.eaterIds ?? [],
     notes: meal?.notes ?? null, plannedTime: meal?.plannedTime ?? null, status: meal?.status ?? 'planned', sourceUrl: meal?.sourceUrl ?? null,
     ...(initial.recipe ? { title: initial.recipe.name, mealKind: 'recipe' as const, recipeId: initial.recipe.id, restaurantId: null }
       : initial.restaurant ? { title: initial.restaurant.name, mealKind: 'dining_out' as const, recipeId: null, restaurantId: initial.restaurant.id, orderType: meal?.orderType ?? 'pickup' as const }

@@ -1,5 +1,3 @@
-import SchoolLunchSheet from './SchoolLunchSheet.tsx'
-import { schoolLunchDraft, schoolLunchKey, schoolLunchVisibleTo, type SchoolLunchFallback } from './school-menus.ts'
 import { useEffect, useState } from 'react'
 import { withHashParam } from './hashQuery.ts'
 import { api } from './api.ts'
@@ -67,8 +65,6 @@ export default function Meals() {
   const [projection, setProjection] = useState(false)
   const [importing, setImporting] = useState<{ url: string } | null>(null)
   const [tick, setTick] = useState(0)
-  const [schoolLunches, setSchoolLunches] = useState<SchoolLunchFallback[]>([])
-  const [schoolLunch, setSchoolLunch] = useState<SchoolLunchFallback | null>(null)
   const [pendingMeal, setPendingMeal] = useState<string | null>(null)
   const [pendingOrders, setPendingOrders] = useState(false) // #/meals?meal=<id>&orders=1: "Ask for orders" opens the order sheet
   const [pendingRecipe, setPendingRecipe] = useState<string | null>(null) // #/meals?recipe=<id> (Spotlight, Siri)
@@ -103,7 +99,7 @@ export default function Meals() {
   }, [tick, refreshTick])
   useEffect(() => {
     let canceled = false
-    api.getMealPlan(from, to).then(plan => { if (!canceled) { setData({ from, to, meals: plan.meals }); setSchoolLunches(plan.schoolLunches) } }).catch(e => { if (!canceled) setData({ from, to, meals: [], error: e instanceof Error ? e.message : t('Could not load meals.') }) })
+    api.getMeals(from, to).then(meals => { if (!canceled) setData({ from, to, meals }) }).catch(e => { if (!canceled) setData({ from, to, meals: [], error: e instanceof Error ? e.message : t('Could not load meals.') }) })
     return () => { canceled = true }
   }, [from, to, tick, refreshTick])
   useEffect(() => {
@@ -171,7 +167,7 @@ export default function Meals() {
       {mealError ? <LoadError what="the meal plan" error={mealError} onRetry={() => setTick(n => n + 1)} /> : !meals ? <p role="status">{t('Loading meals…')}</p> : <div className="meal-grid-scroll" tabIndex={0} role="region" aria-label={t('Weekly meal plan')}>
         <table className={`meal-grid${compactWeek ? ' meal-grid-compact' : ''}`}><caption className="sr-only">{t('Meals from {from} through {to}', { from, to })}</caption><thead><tr><th scope="col">{t('Date')}</th>{MEAL_SLOTS.map(slot => <th key={slot} scope="col">{tm(SLOT_LABEL[slot])}</th>)}</tr></thead><tbody>{shown.map(date => <tr key={date} className={date === today ? 'meal-today' : ''}>
           <th scope="row"><time dateTime={date}>{mealDayLabel(date, { weekday: 'long' })}<span>{mealDayLabel(date, { month: 'short', day: 'numeric' })}</span></time>{date === today && <span className="meal-today-label">{t('Today')}</span>}</th>
-          {MEAL_SLOTS.map(slot => <td key={slot} data-slot={tm(SLOT_LABEL[slot])}>{slot === 'lunch' && schoolLunches.filter(l => l.date === date && schoolLunchVisibleTo(l, selectedMemberId)).map(l => <button key={schoolLunchKey(l)} type="button" className="meal-card school-menu-row" onClick={() => setSchoolLunch(l)}><span>{t('School lunch')} · {l.schoolName}</span><strong>{l.title}</strong><EaterAvatars ids={l.eaterIds} members={members} /><span>{t('From the school menu')}</span></button>)}{(bySlot.get(`${date}:${slot}`) ?? []).map(meal => {
+          {MEAL_SLOTS.map(slot => <td key={slot} data-slot={tm(SLOT_LABEL[slot])}>{(bySlot.get(`${date}:${slot}`) ?? []).map(meal => {
             const assignee = members.find(member => member.id === meal.assigneeMemberId)
             const recipe = recipes.find(r => r.id === meal.recipeId)
             const total = meal.recipeSnapshot && 'totalMinutes' in meal.recipeSnapshot ? meal.recipeSnapshot.totalMinutes : recipe?.totalMinutes
@@ -185,7 +181,7 @@ export default function Meals() {
               {meal.status !== 'planned' && <span>✓ {statusLabel(meal)}</span>}
               {meal.notes && <span className="meal-note-preview">{meal.notes}</span>}
             </button>
-          })}{polls.filter(p => p.date === date && p.slot === slot).map(p => <button key={p.id} type="button" className="meal-poll" aria-haspopup="dialog" onClick={() => setOpenPoll(p.id)}><span><span aria-hidden="true">🗳</span> {t('Vote open')}</span><small>{p.question}</small></button>)}{admin ? <button className="meal-add" aria-label={t('Plan {meal} for {day}', { meal: tm(SLOT_WORD[slot]), day: mealDayLabel(date) })} onClick={() => setEditing({ meal: null, initial: { date, slot } })}><PlusIcon width={16} height={16} /><span className="sr-only">{t('Plan meal')}</span></button> : !bySlot.has(`${date}:${slot}`) && !(slot === 'lunch' && schoolLunches.some(l => l.date === date && schoolLunchVisibleTo(l, selectedMemberId))) && !polls.some(p => p.date === date && p.slot === slot) && <span className="meal-empty" aria-label={t('No meal planned')}>—</span>}</td>)}
+          })}{polls.filter(p => p.date === date && p.slot === slot).map(p => <button key={p.id} type="button" className="meal-poll" aria-haspopup="dialog" onClick={() => setOpenPoll(p.id)}><span><span aria-hidden="true">🗳</span> {t('Vote open')}</span><small>{p.question}</small></button>)}{admin ? <button className="meal-add" aria-label={t('Plan {meal} for {day}', { meal: tm(SLOT_WORD[slot]), day: mealDayLabel(date) })} onClick={() => setEditing({ meal: null, initial: { date, slot } })}><PlusIcon width={16} height={16} /><span className="sr-only">{t('Plan meal')}</span></button> : !bySlot.has(`${date}:${slot}`) && !polls.some(p => p.date === date && p.slot === slot) && <span className="meal-empty" aria-label={t('No meal planned')}>—</span>}</td>)}
           {compactWeek && admin && freeSlot(date) && <td className="meal-day-add"><button className="meal-add" aria-label={t('Plan a meal for {day}', { day: mealDayLabel(date) })} onClick={() => setEditing({ meal: null, initial: { date, slot: freeSlot(date)! } })}><PlusIcon width={16} height={16} /> {t('Plan a meal')}</button></td>}
         </tr>)}</tbody></table>
       </div>}
@@ -211,7 +207,6 @@ export default function Meals() {
         </button>)}</div>
       </>}
     </section>}
-    {schoolLunch && <SchoolLunchSheet lunch={schoolLunch} onClose={() => setSchoolLunch(null)} onPlan={() => { setSchoolLunch(null); setEditing({ meal: null, initial: schoolLunchDraft(schoolLunch, selectedMemberId) }) }} />}
     {shownMeal && <PlannedMealSheet key={shownMeal.id} meal={shownMeal} recipes={recipes} me={me} startOrders={pendingOrders && shownMeal.id === pendingMeal} onRated={() => setTick(n => n + 1)} onClose={() => { setOpenMeal(null); setPendingMeal(null); setPendingOrders(false) }} onSaved={saved} />}
     {editing && <MealSheet meal={editing.meal} initial={editing.initial} recipes={recipes} admin={admin} owner={me?.owner} me={me} onChanged={() => setTick(n => n + 1)} onClose={() => setEditing(null)} onSaved={saved} onRecipe={recipe => setRecipeSheet({ recipe, readOnly: true })} />}
     {recipeSheet && <RecipeSheet key={recipeSheet.recipe?.id ?? 'new'} recipe={recipeSheet.recipe} library={recipes} admin={admin && !recipeSheet.readOnly} owner={ratingOwner(me)} onRated={() => setTick(n => n + 1)} onClose={() => setRecipeSheet(null)} onSaved={saved} onPlan={recipeSheet.readOnly || !admin ? undefined : recipe => { setRecipeSheet(null); setEditing({ meal: null, initial: { date: today, slot: 'dinner', recipe } }) }} />}

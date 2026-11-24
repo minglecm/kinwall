@@ -1,4 +1,3 @@
-import { schoolMenuRoutes } from './routes/school-menus.ts';
 import { weeklyPlanningRoutes } from './routes/weekly-planning.ts';
 import { runEventLiveActivities } from './event-live-activities.ts';
 import { eventFollowsRoutes } from './routes/event-follows.ts';
@@ -202,7 +201,6 @@ export function createApp() {
   app.route('/', revRoutes);
   app.route('/', nightScreenRoutes);
   app.route('/', upkeepRoutes);
-  app.route('/', schoolMenuRoutes);
   app.route('/', schoolRoutes);
   app.route('/', settingsRoutes);
   app.route('/', quietPinRoutes);

@@ -1319,7 +1319,7 @@ test('daily summaries share reads across recipients while keeping filters, langu
   db.prepare = (sql: string) => {
     // Observe executions (including batch rawAll), not just statement preparation.
     const count = () => {
-      if (sql.startsWith('SELECT slot, title, date, eater_ids FROM meals WHERE date = ?')) reads.meals++;
+      if (sql.startsWith('SELECT slot, title FROM meals WHERE date = ?')) reads.meals++;
       if (sql.startsWith("SELECT COALESCE(SUM(status = 'approved')")) reads.goals++;
       if (sql === 'SELECT member_ids FROM calendars WHERE id = ?') reads.calendarLookups++;
     };
@@ -1378,45 +1378,5 @@ test('daily summaries share reads across recipients while keeping filters, langu
     assert.match(payload.body, /Meals: Dinner · Soup/);
     assert.doesNotMatch(payload.body, /Tacos/);
     assert.deepEqual(reads, { meals: 1, goals: 1, calendarLookups: 0 });
-  } finally { push.restore(); }
-});
-
-test('daily summary school lunches respect each recipient and share the menu read', async () => {
-  const env = makeEnv(), request = makeApp(env);
-  const json = async (url: string, method = 'GET', body?: unknown) => {
-    const response = await request(url, { method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-    assert.ok(response.ok, await response.clone().text()); return await response.json() as any;
-  };
-  const settings = await json('/api/settings');
-  await json('/api/settings', 'PATCH', { timezone: 'UTC', features: { ...settings.features, school: true } });
-  const school = await json('/api/contacts', 'POST', { name: 'Maple Grove School', kind: 'organization' });
-  const maya = await json('/api/members', 'POST', { name: 'Maya', color: '#5ae' });
-  const leo = await json('/api/members', 'POST', { name: 'Leo', color: '#ea5' });
-  for (const child of [maya, leo]) await json(`/api/school/kids/${child.id}`, 'PUT', { mode: 'enrolled', schoolContactId: school.id });
-  const menu = await json('/api/school/menus', 'POST', { schoolContactId: school.id, name: 'School lunch' });
-  await json(`/api/school/menus/${menu.id}/entries/sync`, 'PUT', { from: '2030-03-04', to: '2030-03-04', entries: [{ date: '2030-03-04', title: 'School pasta' }] });
-  await json(`/api/school/menu-settings/${school.id}`, 'PUT', { lunchMenuId: menu.id, useForMeals: true });
-  await json('/api/meals', 'POST', { date: '2030-03-04', slot: 'lunch', title: 'Packed lunch', eaterIds: [maya.id] });
-  const prefs = { dailySummary: true, summaryTime: '07:30', eventReminders: false, outingReminders: false, upkeepReminders: false };
-  const subscribers = [];
-  for (const [name, memberIds] of [['family', []], ['maya', [maya.id]], ['leo', [leo.id]]] as const) {
-    const sub = await subscribe(request, ADMIN_KEY, name, prefs);
-    await json(`/api/push/subscriptions/${sub.row.id}`, 'PATCH', { memberIds });
-    subscribers.push({ name, ...sub });
-  }
-  const db = env.DB as ReturnType<typeof openDb>, prepare = db.prepare.bind(db);
-  let menuReads = 0;
-  db.prepare = (sql: string) => { if (sql.includes('FROM school_menu_settings s')) menuReads++; return prepare(sql); };
-  const push = stubPush();
-  try {
-    await runNotifications(env, new Date('2030-03-04T07:30:00Z'));
-    for (const sub of subscribers) {
-      const sent = push.sent.find(p => p.url.endsWith('/' + sub.name))!;
-      assert.ok(sent, sub.name);
-      const body = JSON.parse(await referenceDecrypt(sent.body!, sub.keys.privateKey, sub.keys.p256dh, sub.keys.auth)).body;
-      if (sub.name === 'maya') assert.doesNotMatch(body, /School lunch: School pasta/);
-      else assert.match(body, /School lunch: School pasta/);
-    }
-    assert.equal(menuReads, 1, 'all recipient copies reuse one school menu resolution');
   } finally { push.restore(); }
 });

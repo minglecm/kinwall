@@ -4292,7 +4292,7 @@ html:root[data-cast] {
 @media (hover: hover) and (pointer: fine) {
   /* Bordered surfaces: the border goes to the accent (the .sheet-link / PickField row is the model). */
   :where(.sheet-link, .btn-secondary, button.chip, select, .emoji-swatch, .color-swatch, .date-chip, .member-avatar, .list-card,
-    .list-item-check, .school-work-check, .meal-card, .school-menu-row, .recipe-card, .use-it-up-open, .meal-add, .contact-card, .contact-import-choice, .contact-action, .scheme-card,
+    .list-item-check, .school-work-check, .meal-card, .recipe-card, .use-it-up-open, .meal-add, .contact-card, .contact-import-choice, .contact-action, .scheme-card,
     .meds-set-row, .meds-status-btn, .snap-temp-face, .activity-card-more, .cook-timer-chip, .board-trivia-choices button, .news-react, .news-share, .news-who-btn, .poll-option, .meal-poll, .outing-row,
     .setup-choice, .setup-provider-card, .get-started-item, .setup-check-row
   ):not(:disabled, :focus-visible, .active, .selected, .done, [aria-pressed="true"], [aria-current]):hover { border-color: var(--accent); }

@@ -1,3 +1,5 @@
+import SchoolLunchSheet, { SchoolLunchRow } from './SchoolLunchSheet.tsx'
+import { schoolLunchKey, type SchoolLunchFallback } from './school-menus.ts'
 import { useEffect, useRef, useState } from 'react'
 import { api, ApiError } from './api.ts'
 import { useApp } from './AppContext.tsx'
@@ -410,10 +412,13 @@ export function BirthdayRow({ b, you, close }: { b: SnapshotBirthday; you: strin
 function DayView({ snap, tz, close, onToggle, books }: { snap: Snapshot; tz: string; close: () => void; onToggle: (c: SnapshotChore) => void; books: TrackerEntry<ReadingData>[] }) {
   const { features, mealTimes } = useApp().settings
   const [meal, setMeal] = useState<Meal | null>(null)
+  const [schoolLunch, setSchoolLunch] = useState<SchoolLunchFallback | null>(null)
   const today = snap.from
+  const schoolLunches = features.meals ? (snap.schoolLunches ?? []).filter(l => l.date === today) : []
   const next = snap.tomorrow
   const tw = snap.weather?.days.find(d => d.date === next?.date)
   const glance = next ? [
+    features.meals && !!next.schoolLunches?.length && t('School lunch: {list}', { list: next.schoolLunches.map(l => l.title).join(', ') }),
     tw && `${tw.emoji} ${tw.text}, ${tw.high}°/${tw.low}°${tw.rainChance ? ` · 💧 ${tw.rainChance}%` : ''}`,
     ...next.birthdays.map(b => `🎂 ${birthdayLine(b, snap.member.id)}`),
     next.events.length ? `🗓 ${next.events.slice(0, 3).map(e => `${e.allDay ? '' : `${formatTime(e.start, tz)} `}${e.title}`).join(', ')}${next.events.length > 3 ? ` ${t('+{n} more', { n: next.events.length - 3 })}` : ''}` : `🗓 ${t('Nothing on the calendar')}`,
@@ -440,9 +445,9 @@ function DayView({ snap, tz, close, onToggle, books }: { snap: Snapshot; tz: str
           ? <p className="snap-empty">{t('Nothing due — all caught up.')}</p>
           : <ul className="snap-list">{snap.items.map(i => <ItemRow key={i.id} i={i} today={today} close={close} />)}</ul>}
       </Section>}
-      {meals.length > 0 && (
+      {(meals.length > 0 || schoolLunches.length > 0) && (
         <Section title={t('Meals')}>
-          <ul className="snap-list">{meals.map(m => (
+          <ul className="snap-list">{schoolLunches.map(lunch => <SchoolLunchRow key={schoolLunchKey(lunch)} lunch={lunch} onOpen={() => setSchoolLunch(lunch)} />)}{meals.map(m => (
             <li key={m.id}>
               <button className="snap-row" onClick={() => setMeal(m)}>
                 <span className="snap-time">{m.plannedTime ? formatTime(m.plannedTime) : tm(SLOT_LABEL[m.slot])}</span>
@@ -450,6 +455,7 @@ function DayView({ snap, tz, close, onToggle, books }: { snap: Snapshot; tz: str
               </button>
             </li>
           ))}</ul>
+          {schoolLunch && <SchoolLunchSheet lunch={schoolLunch} onClose={() => setSchoolLunch(null)} />}
           {meal && <MealQuickSheet meal={meal} onClose={() => setMeal(null)} />}
         </Section>
       )}
@@ -480,12 +486,15 @@ function DayView({ snap, tz, close, onToggle, books }: { snap: Snapshot; tz: str
 }
 
 function WeekView({ snap, tz, close }: { snap: Snapshot; tz: string; close: () => void }) {
+  const { settings } = useApp()
+  const [schoolLunch, setSchoolLunch] = useState<SchoolLunchFallback | null>(null)
   const today = snap.from
   const dates: string[] = []
   for (let d = new Date(`${snap.from}T12:00:00Z`); d.toISOString().slice(0, 10) <= snap.to; d.setUTCDate(d.getUTCDate() + 1)) dates.push(d.toISOString().slice(0, 10))
   const undated = snap.items.filter(i => !i.dueDate || i.overdue) // important with no date, or already late
   return (
     <>
+      {schoolLunch && <SchoolLunchSheet lunch={schoolLunch} onClose={() => setSchoolLunch(null)} />}
       {undated.length > 0 && (
         <Section title={t('Keep in mind')}>
           <ul className="snap-list">{undated.map(i => <ItemRow key={i.id} i={i} today={today} close={close} />)}</ul>
@@ -498,7 +507,8 @@ function WeekView({ snap, tz, close }: { snap: Snapshot; tz: string; close: () =
         const birthdays = snap.birthdays.filter(b => b.date === date)
         const chores = snap.chores.filter(c => c.date === date)
         const label = date === today ? t('Today') : dayName(date, { weekday: 'long', month: 'short', day: 'numeric' })
-        const empty = !events.length && !items.length && !birthdays.length
+        const schoolLunches = settings.features.meals ? (snap.schoolLunches ?? []).filter(l => l.date === date) : []
+        const empty = !events.length && !items.length && !birthdays.length && !schoolLunches.length
         return (
           <section key={date} className="snap-section snap-weekday" aria-label={label}>
             <h3 className="snap-heading snap-day-heading">
@@ -506,6 +516,7 @@ function WeekView({ snap, tz, close }: { snap: Snapshot; tz: string; close: () =
               {w && <span className="snap-day-weather"><span aria-hidden="true">{w.emoji}</span><span className="sr-only">{w.text}, </span> {w.high}°/{w.low}°{w.rainChance ? <span className="snap-dim"> · 💧{w.rainChance}%</span> : null}</span>}
             </h3>
             <ul className="snap-list">
+              {schoolLunches.map(lunch => <SchoolLunchRow key={schoolLunchKey(lunch)} lunch={lunch} onOpen={() => setSchoolLunch(lunch)} />)}
               {birthdays.map(b => <BirthdayRow key={`${b.memberId ?? b.eventId}`} b={b} you={snap.member.id} close={close} />)}
               {events.map(e => <EventRow key={`${e.id}:${e.start}`} e={e} tz={tz} close={close} />)}
               {items.map(i => <ItemRow key={i.id} i={i} today={today} close={close} />)}

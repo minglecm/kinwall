@@ -1,3 +1,5 @@
+import SchoolLunchSheet, { SchoolLunchRow } from './SchoolLunchSheet.tsx'
+import { schoolLunchKey, schoolLunchVisibleTo, type SchoolLunchFallback } from './school-menus.ts'
 import { useState } from 'react'
 import { useApp } from './AppContext.tsx'
 import { minutesSinceMidnight } from './date.ts'
@@ -11,21 +13,25 @@ import { ORDER_TYPE_LABEL, ordersLabel } from './orders.ts'
 import { t, tc, tm } from './i18n.ts'
 
 /** The Board's Today's meals card (its rows; Board.tsx wraps them in the card), from the Board's own data. A tapped meal opens its sheet over the Board; planning stays in the Meals section. */
-export default function TodaysMeals({ now, meals: all }: { now: Date; meals: Meal[] }) {
+export default function TodaysMeals({ now, meals: all, schoolLunches = [] }: { now: Date; meals: Meal[]; schoolLunches?: SchoolLunchFallback[] }) {
   const { settings, members, selectedMemberId } = useApp()
+  const [schoolLunch, setSchoolLunch] = useState<SchoolLunchFallback | null>(null)
+  const defaults = schoolLunches.filter(m => schoolLunchVisibleTo(m, selectedMemberId))
   const [open, setOpen] = useState<Meal | null>(null)
   const meals = byMealTime(all.filter(meal => mealForMember(meal, selectedMemberId)), settings.mealTimes)
   const tz = settings.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
-  const at = (meal: Meal) => mealMinutes(meal, settings.mealTimes)
-  const planned = meals.filter(meal => meal.status === 'planned')
+  const at = (meal: Meal | SchoolLunchFallback) => mealMinutes(meal, settings.mealTimes)
+  const rows = byMealTime<Meal | SchoolLunchFallback>([...meals, ...defaults], settings.mealTimes)
+  const planned = rows.filter(meal => 'origin' in meal || meal.status === 'planned')
   const minute = minutesSinceMidnight(now.toISOString(), tz)
   const next = planned.find(meal => at(meal) >= minute) ?? planned[planned.length - 1]
   return <>
-      {meals.length === 0 ? <button className="snap-empty board-empty-tap" onClick={() => { location.hash = '#/meals' }}>{t('No meals planned today.')}</button> : <ul className="snap-list">
-        {meals.map(meal => {
+      {meals.length === 0 && defaults.length === 0 ? <button className="snap-empty board-empty-tap" onClick={() => { location.hash = '#/meals' }}>{t('No meals planned today.')}</button> : <ul className="snap-list">
+        {rows.map(meal => {
+          if ('origin' in meal) return <SchoolLunchRow key={schoolLunchKey(meal)} lunch={meal} next={meal === next} onOpen={() => setSchoolLunch(meal)} />
           const assignee = members.find(member => member.id === meal.assigneeMemberId)
-          return <li key={meal.id}><button type="button" onClick={() => setOpen(meal)} className={`snap-row today-meal ${meal.id === next?.id ? 'today-meal-next' : at(meal) < minute ? 'today-meal-past' : ''}`}>
-            <span className="snap-main"><span className="board-when">{tm(SLOT_LABEL[meal.slot])}{meal.plannedTime ? ` · ${formatTime(meal.plannedTime)}` : ''}{meal.id === next?.id ? ` · ${at(meal) >= minute ? tc('meal', 'Next') : t('Planned')}` : ''}</span>
+          return <li key={meal.id}><button type="button" onClick={() => setOpen(meal)} className={`snap-row today-meal ${meal === next ? 'today-meal-next' : at(meal) < minute ? 'today-meal-past' : ''}`}>
+            <span className="snap-main"><span className="board-when">{tm(SLOT_LABEL[meal.slot])}{meal.plannedTime ? ` · ${formatTime(meal.plannedTime)}` : ''}{meal === next ? ` · ${at(meal) >= minute ? tc('meal', 'Next') : t('Planned')}` : ''}</span>
               <span className="snap-title">{meal.mealKind === 'dining_out' ? '↗ ' : ''}{meal.title}</span>
               <EaterAvatars ids={meal.eaterIds ?? []} members={members} />
               <span className="snap-meta">{[meal.mealKind === 'dining_out' ? meal.orderType ? tm(ORDER_TYPE_LABEL[meal.orderType]) : t('Eating out') : null, meal.mealKind === 'dining_out' && meal.status === 'planned' && meal.orders?.length ? ordersLabel(meal) : null, meal.recipeSnapshot?.totalMinutes ? minutesLabel(meal.recipeSnapshot.totalMinutes) : null, assignee ? t('Cooking: {who}', { who: `${assignee.avatar ?? ''} ${assignee.name}` }) : null, meal.status !== 'planned' ? statusLabel(meal) : null].filter(Boolean).join(' · ')}</span>
@@ -34,6 +40,7 @@ export default function TodaysMeals({ now, meals: all }: { now: Date; meals: Mea
           </button></li>
         })}
       </ul>}
+      {schoolLunch && <SchoolLunchSheet lunch={schoolLunch} onClose={() => setSchoolLunch(null)} />}
       {open && <MealQuickSheet meal={open} onClose={() => setOpen(null)} />}
   </>
 }

@@ -1,5 +1,7 @@
+import type { SchoolMenu, SchoolMenuEntry, SchoolMenuSettings, SchoolLunchFallback } from './school-menus.ts'
+import type { Meal } from './meal-types.ts'
 // In-memory School for VITE_MOCK only (the server: routes/school.ts). The demo family (all made up):
-// Maya goes to school and logs her reading practice; Leo is homeschooled, and the two did a science
+// Maya and Leo share a school menu and log their reading practice; the two did a science
 // project together. Leo's time logged on the wall waits for a grown-up, so the demo shows approval.
 import { mock } from './mock.ts'
 import { dateKey } from './date.ts'
@@ -20,7 +22,7 @@ let subjects: SchoolSubject[] = ([
 const kidBase = { dayStart: null, dayEnd: null, schoolDays: [1, 2, 3, 4, 5], calendarIds: [] as string[], halfDayEnd: null, halfFromSchoolTime: null, lastDay: null, schoolContactId: null, teacherName: null, teacherEmail: null, teacherLink: null, contactIds: [], terms: 3, yearGoalHours: null, yearGoalDays: null, dailyGoalMinutes: null, yearStart: DEFAULT_YEAR_START, toSchoolBy: null, toSchoolTime: null, fromSchoolBy: null, fromSchoolTime: null }
 let kids: SchoolKid[] = [
   { ...kidBase, memberId: 'm3', mode: 'enrolled', grade: '3rd', approveLogs: false, dayStart: '08:15', dayEnd: '15:05', calendarIds: ['c2'], halfDayEnd: '12:05', halfFromSchoolTime: '12:15', lastDay: `${schoolYearOf(today, '08-24') + 1}-06-11`, schoolContactId: 'contact-school', teacherName: 'Ms. Okafor', teacherEmail: 'okafor@example.org', teacherLink: 'https://www.classdojo.com/', contactIds: [], yearStart: '08-24', toSchoolBy: 'bus', toSchoolTime: '07:35', fromSchoolBy: 'm1', fromSchoolTime: '15:05' },
-  { ...kidBase, memberId: 'm4', mode: 'home', grade: '1st', approveLogs: true, yearGoalHours: 600, yearGoalDays: 180, dailyGoalMinutes: 180 },
+  { ...kidBase, memberId: 'm4', mode: 'enrolled', schoolContactId: 'contact-school', dayStart: '08:15', dayEnd: '15:05', calendarIds: ['c2'], halfDayEnd: '12:05', lastDay: `${schoolYearOf(today, '08-24') + 1}-06-11`, yearStart: '08-24', grade: '1st', approveLogs: true, yearGoalHours: 600, yearGoalDays: 180, dailyGoalMinutes: 180 },
 ]
 // Maya's first-term report card (grownups only; the demo is a parent's device unless kinwall.demoKid says otherwise).
 const firstYear = schoolYearOf(today, '08-24') // Maya's school starts August 24
@@ -79,6 +81,23 @@ const groupIds = (id: string, all: boolean) => {
   return all ? logs.filter(x => x.groupId === l.groupId).map(x => x.id) : [id]
 }
 
+let schoolMenus: SchoolMenu[] = [{ id: 'demo-school-menu', schoolContactId: 'contact-school', name: 'School lunch', sourceName: 'Example school menu', sourceUrl: 'https://example.org/menu', archived: false, lastSyncedAt: new Date().toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]
+let menuEntries: SchoolMenuEntry[] = Array.from({ length: 35 }, (_, n) => addDayKeys(weekOf(today, 0).from, n - 7)).filter(d => ![0, 6].includes(new Date(d + 'T12:00:00').getDay())).map((date, i) => ({ menuId: 'demo-school-menu', date, availability: i % 11 === 10 ? 'not_served' : 'available', title: ['Chicken tenders or pizza', 'Bean tacos or a cheese sandwich', 'Pasta with tomato sauce'][i % 3], description: 'Vegetables, fresh fruit and milk.', sourceUrl: null, updatedAt: new Date().toISOString() }))
+let menuSettings: SchoolMenuSettings[] = [{ schoolContactId: 'contact-school', lunchMenuId: 'demo-school-menu', useForMeals: true }]
+export async function mockSchoolLunches(from: string, to: string, meals: Meal[]): Promise<SchoolLunchFallback[]> {
+  const flags = (await mock.getSettings()).features
+  if (!flags.school || !flags.meals) return []
+  const days = (await schoolDays(from, to)).days
+  const result: SchoolLunchFallback[] = []
+  for (const entry of menuEntries.filter(e => e.date >= from && e.date <= to && e.availability === 'available')) {
+    const menu = schoolMenus.find(m => m.id === entry.menuId && !m.archived)
+    if (!menu || !menuSettings.some(s => s.schoolContactId === menu.schoolContactId && s.lunchMenuId === menu.id && s.useForMeals)) continue
+    const eaterIds = kids.filter(k => k.mode === 'enrolled' && k.schoolContactId === menu.schoolContactId && days.some(d => d.memberId === k.memberId && d.date === entry.date && ['school', 'half'].includes(d.kind)) && !meals.some(m => m.date === entry.date && m.slot === 'lunch' && (!m.eaterIds.length || m.eaterIds.includes(k.memberId)))).map(k => k.memberId)
+    if (eaterIds.length) result.push({ origin: 'school_menu', menuId: menu.id, schoolContactId: menu.schoolContactId!, schoolName: 'Maple Grove School', menuName: menu.name, date: entry.date, slot: 'lunch', title: entry.title!, description: entry.description, sourceUrl: entry.sourceUrl ?? menu.sourceUrl, sourceName: menu.sourceName, lastSyncedAt: menu.lastSyncedAt, eaterIds })
+  }
+  return copy(result)
+}
+
 export async function mockSchoolRequest(path: string, options: RequestInit) {
   const url = new URL(path, 'https://demo.invalid')
   const [, , , what, id, action] = url.pathname.split('/') // /api/school/logs/{id}/approve
@@ -86,6 +105,24 @@ export async function mockSchoolRequest(path: string, options: RequestInit) {
   const method = options.method ?? 'GET', body = options.body ? JSON.parse(String(options.body)) : {}
   if (!(await mock.getSettings()).features.school) throw new ApiError(404, 'School is turned off in Settings → General → Features')
   const now = new Date().toISOString()
+  if (what === 'menus') {
+    if (method !== 'GET' && mock.demoKid()) throw new ApiError(403, 'Only a parent can manage school menus.')
+    const menu = schoolMenus.find(m => m.id === id)
+    if (method === 'GET' && action === 'entries') return copy(menuEntries.filter(e => e.menuId === id && e.date >= q.get('from')! && e.date <= q.get('to')!))
+    if (method === 'GET') return copy(id ? menu : schoolMenus.filter(m => (q.get('archived') === 'all' || !m.archived) && (!q.get('schoolContactId') || m.schoolContactId === q.get('schoolContactId'))))
+    if (method === 'DELETE') { schoolMenus = schoolMenus.filter(m => m.id !== id); menuEntries = menuEntries.filter(e => e.menuId !== id); menuSettings = menuSettings.map(s => s.lunchMenuId === id ? { ...s, lunchMenuId: null, useForMeals: false } : s); return { ok: true } }
+    const saved: SchoolMenu = { sourceName: null, sourceUrl: null, archived: false, lastSyncedAt: null, createdAt: now, ...menu, ...body, id: menu?.id ?? crypto.randomUUID(), updatedAt: now }
+    schoolMenus = [...schoolMenus.filter(m => m.id !== saved.id), saved]
+    if (saved.archived || menu && saved.schoolContactId !== menu.schoolContactId) menuSettings = menuSettings.map(s => s.lunchMenuId === saved.id ? { ...s, lunchMenuId: null, useForMeals: false } : s)
+    return copy(saved)
+  }
+  if (what === 'menu-settings') {
+    const setting = { schoolContactId: id!, lunchMenuId: null, useForMeals: false, ...menuSettings.find(s => s.schoolContactId === id) }
+    if (method === 'GET') return copy(setting)
+    if (mock.demoKid()) throw new ApiError(403, 'Only a parent can change school lunch settings.')
+    if (body.lunchMenuId && !schoolMenus.some(m => m.id === body.lunchMenuId && m.schoolContactId === id && !m.archived)) throw new ApiError(400, 'Select an active menu from this school.')
+    const saved = { ...setting, ...body }; menuSettings = [...menuSettings.filter(s => s.schoolContactId !== id), saved]; return copy(saved)
+  }
   if (what === 'subjects') {
     if (method === 'GET') return copy(subjects.filter(s => q.get('archived') === 'all' || !s.archived).sort((a, b) => a.sort - b.sort))
     if (method === 'POST') { const s: SchoolSubject = { id: crypto.randomUUID(), name: body.name, emoji: body.emoji || null, color: body.color, sort: subjects.length, archived: false }; subjects.push(s); return copy(s) }
@@ -192,3 +229,5 @@ async function schoolDays(from: string, to: string) {
   }
   return { days, left }
 }
+
+// Published menu fixtures contain normalized data only; the demo has no source fetcher.

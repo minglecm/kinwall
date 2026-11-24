@@ -312,6 +312,9 @@ async function projection(from: string, to: string, listId: string | null, basic
   return { from, to, listId, items: [...groups.values()].map(item => ({ ...item, applied: item.sources.every(s => s.applied), partiallyApplied: item.sources.some(s => s.applied) && item.sources.some(s => !s.applied), changedSinceApplied: item.sources.some(s => s.changedSinceApplied) })) }
 }
 
+const demoPackedLunch = meals.find(m => m.slot === 'lunch' && m.date === dateKey(new Date()))
+if (demoPackedLunch) { demoPackedLunch.eaterIds = ['m3']; demoPackedLunch.title = 'Packed lunch'; demoPackedLunch.servings = 1 }
+
 /** The demo menu for the Board and a member's day (the server's readMeals). */
 export const mockMeals = (from: string, to: string) => meals.filter(m => m.date >= from && m.date <= to)
 

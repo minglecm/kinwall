@@ -1,3 +1,7 @@
+import SchoolMenus, { SchoolMenuSettingsField } from './SchoolMenus.tsx'
+import SchoolLunchSheet from './SchoolLunchSheet.tsx'
+import { schoolLunchKey, type SchoolLunchFallback } from './school-menus.ts'
+import type { Meal } from './meal-types.ts'
 import { SCHOOL_KINDS as KINDS, schoolKindLabel as kindLabel } from './schoolwork.ts'
 // School (docs/using/school.md; server: routes/school.ts): subjects, which kids are in school, and
 // the time each kid spends learning. One week at a time: each kid's minutes by subject, then what
@@ -77,14 +81,15 @@ export default function School() {
   const [logging, setLogging] = useState(false)
   const [editing, setEditing] = useState<LogGroup | null>(null)
   const [setup, setSetup] = useState(false)
-  const [view, setView] = useState<'today' | 'week' | 'log' | 'grades' | 'records'>('today')
+  const [view, setView] = useState<'today' | 'week' | 'log' | 'grades' | 'records' | 'menus'>('today')
   const narrow = useMediaQuery('(max-width:900px)') // Week: a list by day on a phone or portrait tablet, the grid when seven days fit
   const [work, setWork] = useState<ChoreDay | 'new' | null>(null)
   const [marking, setMarking] = useState<string | null>(null) // the day a grown-up is marking (no school, a half day)
   // Schoolwork is chores with a subject: the shown week's days, and today, each with what's done.
+  const [schoolLunch, setSchoolLunch] = useState<SchoolLunchFallback | null>(null)
   const [days, setDays] = useState<Record<string, ChoreDay[]>>({})
   // Today's school day: each linked school calendar's events, the lunch, and the school and teachers.
-  const [dayInfo, setDayInfo] = useState<{ events: Record<string, EventInstance[]>; lunch: string[]; contacts: Contact[]; school: SchoolDays }>({ events: {}, lunch: [], contacts: [], school: { days: [], left: [] } })
+  const [dayInfo, setDayInfo] = useState<{ events: Record<string, EventInstance[]>; lunch: Meal[]; schoolLunches: SchoolLunchFallback[]; contacts: Contact[]; school: SchoolDays }>({ events: {}, lunch: [], schoolLunches: [], contacts: [], school: { days: [], left: [] } })
   const kidsKey = JSON.stringify(data?.kids.map(k => [k.calendarIds, k.schoolContactId, k.contactIds, k.mode, k.lastDay, k.schoolDays, k.yearStart]) ?? [])
   useEffect(() => {
     if (!data) return
@@ -95,10 +100,10 @@ export default function School() {
     const from = new Date(`${first}T00:00:00`), to = new Date(`${last}T23:59:59`)
     Promise.all([
       Promise.all(cals.map(c => api.getEvents(from.toISOString(), to.toISOString(), undefined, c).then(es => [c, es] as const).catch(() => [c, []] as const))),
-      data.kids.some(k => k.mode === 'enrolled') && settings.features.meals ? api.getMeals(who.today, who.today).then(ms => ms.filter(m => m.slot === 'lunch').map(m => m.title)).catch(() => []) : Promise.resolve([]),
+      data.kids.some(k => k.mode === 'enrolled') && settings.features.meals ? api.getMealPlan(first, last).then(plan => ({ lunch: plan.meals.filter(m => m.slot === 'lunch'), schoolLunches: plan.schoolLunches })).catch(() => ({ lunch: [], schoolLunches: [] })) : Promise.resolve({ lunch: [], schoolLunches: [] }),
       data.kids.some(k => k.contactIds.length || k.schoolContactId) && settings.features.contacts !== false ? api.getContacts().catch(() => []) : Promise.resolve([]),
       api.getSchoolDays(first, last).catch(() => ({ days: [], left: [] })),
-    ]).then(([events, lunch, contacts, school]) => { if (!canceled) setDayInfo({ events: Object.fromEntries(events), lunch, contacts, school }) })
+    ]).then(([events, lunch, contacts, school]) => { if (!canceled) setDayInfo({ events: Object.fromEntries(events), ...lunch, contacts, school }) })
     return () => { canceled = true }
   }, [kidsKey, who.today, week.from, week.to, refreshTick, tick]) // eslint-disable-line react-hooks/exhaustive-deps -- kidsKey stands for data.kids
   useEffect(() => {
@@ -155,19 +160,21 @@ export default function School() {
   }
 
   return <div className="meals-view outings-view school-view scroll-y">
+    {schoolLunch && <SchoolLunchSheet lunch={schoolLunch} onClose={() => setSchoolLunch(null)} />}
     <div className="meals-heading"><div><h1>{t('School')}</h1><p className="field-hint">{t('Each kid’s lessons and homework, and the time they spend learning.')}</p></div>
       <div className="meal-actions">
         {who.parent && <button className="btn btn-secondary" onClick={() => setSetup(true)}>{t('Set up')}</button>}
-        {who.parent && inSchool.length > 0 && view !== 'log' && <button className="btn btn-secondary" onClick={() => setWork('new')}><PlusIcon /> {t('Add schoolwork')}</button>}
-        {inSchool.length > 0 && <button className="btn btn-primary" onClick={() => setLogging(true)}><PlusIcon /> {t('Log time')}</button>}
+        {who.parent && inSchool.length > 0 && view !== 'log' && view !== 'menus' && <button className="btn btn-secondary" onClick={() => setWork('new')}><PlusIcon /> {t('Add schoolwork')}</button>}
+        {inSchool.length > 0 && view !== 'menus' && <button className="btn btn-primary" onClick={() => setLogging(true)}><PlusIcon /> {t('Log time')}</button>}
       </div>
     </div>
 
+    {!inSchool.length && who.parent && <><button className="btn btn-secondary" onClick={() => setView('menus')}>{t('School menus')}</button>{view === 'menus' && <SchoolMenus from={week.from} to={week.to} parent={who.parent} />}</>}
     {!inSchool.length ? <div className="state-card">
       <p>{who.parent ? t('Pick which kids are in school, and whether they’re homeschooled or go to a school.') : t('A grown-up can pick which kids are in school.')}</p>
       {who.parent && <button className="btn btn-primary" onClick={() => setSetup(true)}>{t('Set up School')}</button>}
     </div> : <>
-      <Segmented tabs idBase="school-tab" label={t('School views')} value={view} onChange={setView} options={[{ key: 'today', label: t('Today') }, { key: 'week', label: t('Week') }, { key: 'log', label: t('Time') }, ...(who.parent && data.kids.some(k => k.mode === 'enrolled') ? [{ key: 'grades' as const, label: t('Grades') }] : []), ...(who.parent ? [{ key: 'records' as const, label: t('Records') }] : [])]} />
+      <Segmented tabs idBase="school-tab" label={t('School views')} value={view} onChange={setView} options={[{ key: 'today', label: t('Today') }, { key: 'week', label: t('Week') }, { key: 'menus', label: t('Menus') }, { key: 'log', label: t('Time') }, ...(who.parent && data.kids.some(k => k.mode === 'enrolled') ? [{ key: 'grades' as const, label: t('Grades') }] : []), ...(who.parent ? [{ key: 'records' as const, label: t('Records') }] : [])]} />
 
       {who.parent && data.waiting.length > 0 && <section className="outing-section school-waiting" aria-labelledby="school-waiting">
         <h2 id="school-waiting">{t('Waiting for a grown-up')} <small>({data.waiting.length})</small></h2>
@@ -191,13 +198,15 @@ export default function School() {
         return <div key={m.id} className="school-total">
           <div className="school-total-head"><Face m={m} /><strong>{m.name}</strong><span className="field-hint">{modeLine(k)}</span><span className="school-total-time">{k.dailyGoalMinutes ? t('{time} of {goal}', { time: hoursMinutes(logged), goal: hoursMinutes(k.dailyGoalMinutes) }) : logged ? hoursMinutes(logged) : t('Nothing yet')}</span></div>
           {(today || left) && <DayNote day={today} left={left} />}
-          {(schoolDay && (k.dayStart && k.dayEnd || k.toSchoolBy || k.fromSchoolBy) || events.length > 0 || (schoolDay && dayInfo.lunch.length > 0) || people.length > 0 || school || k.teacherName) && <ul className="school-day">
+          {(schoolDay && (k.dayStart && k.dayEnd || k.toSchoolBy || k.fromSchoolBy) || events.length > 0 || (schoolDay && (dayInfo.lunch.length > 0 || dayInfo.schoolLunches.length > 0)) || people.length > 0 || school || k.teacherName) && <ul className="school-day">
             {schoolDay && <Leg by={k.toSchoolBy} time={k.toSchoolTime} members={members} bus={time => t('Bus at {time}', { time })} grownUp={(name, time) => t('{name} drops off at {time}', { name, time })} />}
             {schoolDay && k.dayStart && (half ? k.halfDayEnd : k.dayEnd) && <li><span aria-hidden="true">🕗</span> {t('School {start} to {end}', { start: formatTime(k.dayStart), end: formatTime((half ? k.halfDayEnd : k.dayEnd)!) })}</li>}
             {schoolDay && (!half || k.halfFromSchoolTime) && <Leg by={k.fromSchoolBy} time={half ? k.halfFromSchoolTime : k.fromSchoolTime} members={members} bus={time => t('Bus home at {time}', { time })} grownUp={(name, time) => t('{name} picks up at {time}', { name, time })} />}
             {schoolDay && half && k.fromSchoolBy && !k.halfFromSchoolTime && <li><span aria-hidden="true">⚠️</span> {t('Early release: check the time home. Set it in Set up.')}</li>}
             {events.map(e => <li key={e.id + (e.occurrenceStart ?? '')}><span aria-hidden="true">📅</span> {e.title}</li>)}
-            {schoolDay && dayInfo.lunch.map((l, i) => <li key={i}><span aria-hidden="true">🍽️</span> {t('Lunch: {meal}', { meal: l })}</li>)}
+            {schoolDay && dayInfo.lunch.filter(l => l.date === who.today && (!l.eaterIds.length || l.eaterIds.includes(m.id))).map(l => <li key={l.id}><span aria-hidden="true">🍽️</span> {t('Lunch: {meal}', { meal: l.title })}</li>)}
+            {schoolDay && dayInfo.schoolLunches.filter(l => l.date === who.today && l.eaterIds.includes(m.id)).map(l => <li key={schoolLunchKey(l)}><button className="sheet-link" onClick={() => setSchoolLunch(l)}>{t('School lunch: {meal}', { meal: l.title })}</button></li>)}
+            {k.schoolContactId && <li><button className="sheet-link" onClick={() => setView('menus')}>{t('View school menu')}</button></li>}
             {(school || k.teacherName) && <li><span aria-hidden="true">{k.teacherName ? '🧑‍🏫' : '🏫'}</span> {k.teacherName && school ? t('{teacher}, {school}', { teacher: k.teacherName, school: school.name }) : k.teacherName ? t('Teacher: {name}', { name: k.teacherName }) : school!.name}{school && <Phone c={school} />}</li>}
             {k.teacherName && (k.teacherEmail || k.teacherLink) && <li><span aria-hidden="true">💬</span> {t('Reach {name}:', { name: k.teacherName })}{' '}
               {k.teacherEmail && <a href={`mailto:${k.teacherEmail}`}>{k.teacherEmail}</a>}{k.teacherEmail && k.teacherLink && ' · '}
@@ -213,26 +222,30 @@ export default function School() {
       {view === 'records' && who.parent && <Records kids={data.kids} members={members} subjects={data.subjects} today={who.today} />}
       {view === 'grades' && who.parent && <Grades kids={data.kids.filter(k => k.mode === 'enrolled')} members={members} subjects={data.subjects} today={who.today} />}
 
-      {(view === 'week' || view === 'log') && <div className="school-week" role="group" aria-label={t('Week')}>
+      {(view === 'week' || view === 'log' || view === 'menus') && <div className="school-week" role="group" aria-label={t('Week')}>
         <button type="button" className="icon-btn" aria-label={t('Previous week')} onClick={() => setDay(addDayKeys(week.from, -7))}><ChevronLeft /></button>
         <strong>{thisWeek ? t('This week') : t('{from} to {to}', { from: shortDay(week.from), to: shortDay(week.to) })}</strong>
         <button type="button" className="icon-btn" aria-label={t('Next week')} disabled={thisWeek && view === 'log'} onClick={() => setDay(addDayKeys(week.from, 7))}><ChevronRight /></button>
         {!thisWeek && <button type="button" className="btn btn-secondary" onClick={() => setDay(who.today)}>{t('This week')}</button>}
       </div>}
 
+      {view === 'menus' && <SchoolMenus from={week.from} to={week.to} parent={who.parent} />}
+
       {view === 'week' && narrow && <div className="school-plan-list">{dayKeys(week.from).map(d => {
         const rows = inSchool.map(m => {
           const k = data.kids.find(x => x.memberId === m.id)
           const events = kidEvents(k, d)
+          const lunch = dayInfo.lunch.filter(l => l.date === d && (!l.eaterIds.length || l.eaterIds.includes(m.id))).map(l => l.title)
+          const schoolLunch = dayInfo.schoolLunches.find(l => l.date === d && l.eaterIds.includes(m.id))
           const work = (days[d] ?? []).filter(c => c.memberId === m.id)
           const day = dayOf(m.id, d)
-          return { m, events, work, day }
-        }).filter(r => r.events.length || r.work.length || noteworthy(r.day))
+          return { m, events, work, day, lunch, schoolLunch }
+        }).filter(r => r.events.length || r.work.length || r.lunch.length || r.schoolLunch || noteworthy(r.day))
         return <section key={d} className={`school-plan-list-day ${d === who.today ? 'today' : ''}`} aria-labelledby={`school-wk-${d}`}>
           <div className="school-plan-list-head"><h2 id={`school-wk-${d}`}>{longDay(d)}{d === who.today && <small> · {t('Today')}</small>}</h2>{who.parent && <button type="button" className="btn btn-secondary school-mark" aria-label={t('Change {day}', { day: longDay(d) })} onClick={() => setMarking(d)}>{t('Change day')}</button>}</div>
-          {!rows.length ? <p className="field-hint">{t('Nothing planned.')}</p> : rows.map(({ m, events, work, day }) => <div key={m.id} className="school-plan-list-kid">
+          {!rows.length ? <p className="field-hint">{t('Nothing planned.')}</p> : rows.map(({ m, events, work, day, lunch, schoolLunch }) => <div key={m.id} className="school-plan-list-kid">
             <span className="school-plan-kid"><Face m={m} /> {m.name}</span>
-            {noteworthy(day) && <DayChip day={day!} />}
+            {noteworthy(day) && <DayChip day={day!} />}{lunch.map((title, i) => <p key={i}>{t('Lunch: {meal}', { meal: title })}</p>)}{schoolLunch && <button className="sheet-link" onClick={() => setSchoolLunch(schoolLunch)}>{t('School lunch: {meal}', { meal: schoolLunch.title })}</button>}
             {events.map(e => <span key={e.id + (e.occurrenceStart ?? '')} className="school-plan-event"><span aria-hidden="true">📅</span> {e.title}</span>)}
             {work.map(c => <WorkRow key={c.id} c={c} compact subject={subject(c.schoolSubjectId ?? null)} onToggle={() => void toggle(c, d)} onEdit={who.parent ? () => setWork(c) : undefined} />)}
           </div>)}
@@ -249,6 +262,8 @@ export default function School() {
             {noteworthy(dayOf(m.id, d)) && <DayChip day={dayOf(m.id, d)!} />}
             {kidEvents(data.kids.find(k => k.memberId === m.id), d)
               .map(e => <span key={e.id + (e.occurrenceStart ?? '')} className="school-plan-event"><span aria-hidden="true">📅</span> {e.title}</span>)}
+            {dayInfo.lunch.filter(l => l.date === d && (!l.eaterIds.length || l.eaterIds.includes(m.id))).map(l => <p key={l.id}>{t('Lunch: {meal}', { meal: l.title })}</p>)}
+            {dayInfo.schoolLunches.filter(l => l.date === d && l.eaterIds.includes(m.id)).map(l => <button key={schoolLunchKey(l)} className="sheet-link" onClick={() => setSchoolLunch(l)}>{t('School lunch: {meal}', { meal: l.title })}</button>)}
             {(days[d] ?? []).filter(c => c.memberId === m.id).map(c => <WorkRow key={c.id} c={c} compact subject={subject(c.schoolSubjectId ?? null)} onToggle={() => void toggle(c, d)} onEdit={who.parent ? () => setWork(c) : undefined} />)}
           </div>)}
         </Fragment>)}
@@ -890,6 +905,7 @@ function SetupSheet({ subjects, kids, onClose }: { subjects: SchoolSubject[]; ki
               options={[{ value: '', label: t('None') }, ...contacts.map(c => ({ value: c.id, label: c.name }))]} onChange={ids => void run(api.putSchoolKid(m.id, { mode: k.mode, schoolContactId: ids[0] || null }))}
               add={{ label: t('New school…'), onAdd: name => setNewContact({ m, k, role: 'school', name }) }} />
             <p className="field-hint">{k.mode === 'enrolled' && !sameSchool(k).length ? t('From Contacts, or add a new one. Its number is the one to call, for the teacher too. Kids at the same school share its hours and bus times.') : t('From Contacts, or add a new one. Its number is the one to call, for the teacher too.')}</p></div>}
+        {k?.mode === 'enrolled' && k.schoolContactId && <SchoolMenuSettingsField schoolContactId={k.schoolContactId} />}
         {k && <label className="school-check"><input type="checkbox" checked={k.approveLogs} onChange={e => void run(api.putSchoolKid(m.id, { mode: k.mode, approveLogs: e.target.checked }))} /> {t('A grown-up checks the time {name} logs', { name: m.name })}</label>}
         {k?.mode === 'enrolled' && <>
           {sameSchool(k).length > 0 && <p className="field-hint">{t('Goes to the same school as {names}: its hours, early release, school days, calendars, school year and bus times are shared. Pickups and drop-offs stay each kid’s own.', { names: new Intl.ListFormat(intlLocale(), { type: 'conjunction' }).format(sameSchool(k).map(x => members.find(mm => mm.id === x.memberId)?.name ?? '')) })}</p>}

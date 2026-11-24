@@ -375,6 +375,14 @@ An event Kinwall made follows the meal, on whichever calendar it's on. Saving th
 
 **Or link an event you already have** attaches an existing event from any calendar. Kinwall never changes or deletes an event you linked. **Unlink (keep the event)** detaches either kind; an event Kinwall made stays on the calendar and stops following the meal.
 
+## School lunch defaults
+
+A school's published menu can supply lunch when a child has no lunch planned. A parent sets this up in [School → Menus → Lunch settings](school.md#school-lunch-menus), or under the child's school in School setup. It applies to every child enrolled at that school, one child at a time.
+
+These lunches say **From the school menu** and show the kids they're for. Tap one for the full menu and source link. **Plan a different lunch** opens the usual meal planner with the day, lunch and those kids already selected. A packed lunch for Maya replaces only Maya's school lunch; Leo still sees the school menu. Removing the packed lunch brings Maya's default back. A meal with nobody selected is **Everyone**, so it replaces every kid's default for that lunch.
+
+School menu defaults are read-only, with no cooking, swapping, ordering, grocery or calendar actions. They are shown alongside your saved meal plan without creating saved meals. Menu corrections appear automatically and never change a lunch your family planned. Published menus can still be read in School when another lunch takes precedence.
+
 ## On the wall and in someone's day
 
 * The Board has a **Today's meals** card, with the next one marked, meals already past dimmed, and who's eating. Tapping a meal opens it right there, the same sheet as tapping it in the week planner, and closing it leaves you on the Board.

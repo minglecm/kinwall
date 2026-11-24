@@ -108,3 +108,5 @@ because someone reaches a milestone. No new Home Assistant entities or native wi
 ### Family announcements
 
 `announcement.changed` is emitted when an announcement is created, edited, or deleted, with `{id}`. Import emits `{imported}` with the restored count. The event bumps the global revision. A scheduled start or expiration is a clock boundary, not a data change: it does not emit a webhook. Readers can use `GET /api/announcements`'s `nextChangeAt` to refresh at the boundary. Turning the feature off prevents announcement mutations and their webhooks.
+
+School menu changes use `school.changed` with `kind: "menu"` and the menu `id`; a successful menu snapshot also includes its inclusive `from` and `to` dates. School-wide menu selection changes use `kind: "menu_settings"` with the school contact `id`. Menu text is not included in these events. Menu receipt never emits `meal.changed`, since no saved meal changes.

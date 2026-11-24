@@ -30,6 +30,18 @@ A parent taps **Set up**. Each kid's settings fold away under their name, with a
 
 **Week** lays the week out by kid and day, with each kid's days off and early release and their school calendar events at the top of the day. On a phone it's a list, day by day. On a wall or a kid's device, tapping something in Week ticks it; on a parent's device it opens it to change.
 
+## School lunch menus
+
+**Menus** shows what a school is serving, a week at a time. A menu belongs to the school chosen from Contacts and can be shared by all its enrolled kids. The arrows move between weeks. A missing day says **Menu not available**; a day explicitly marked without lunch says **Lunch not served**. Neither changes whether the kids have school that day.
+
+A parent opens **Menus → New menu**, chooses the school and gives the menu a name. The source name and menu website are optional. After saving, open **Manage menu → Copy menu ID** and give that ID to the app supplying the menu. Kinwall accepts dated menu data through its [REST API](../integrations/rest-api.md#school-menu-imports); it does not read school websites or PDFs itself. Published days are read-only in Kinwall. **Last received** says when an import last succeeded, and an unavailable importer leaves the previous menu intact.
+
+Under **Lunch settings**, choose the school's menu and turn on **Show school lunch when nothing else is planned**. The same controls appear under each enrolled kid's school in **Set up**, and are shared by kids at that school. This starts off. School menus remain available here while Meals is off.
+
+With the connection on, [Meals](meals.md#school-lunch-defaults), the Board, each kid's day and morning summaries show school lunch for enrolled kids on school days, including early-release days, when no lunch is already planned for them. A lunch assigned to Everyone replaces the default for every kid; a grown-up's own lunch leaves the kids' defaults alone. Days off, weekends, summer and days without a published lunch have no default. The school's calendars and a parent's **Change day** choices still decide which days have school.
+
+A parent can archive or delete a menu from the bottom of **Manage menu**. Either disconnects it from Meals. Archived menus keep their days and can be restored through **Show archived menus**; a restored menu needs selecting again. Deleting the school's contact leaves the menu unassigned with its published days preserved; choose another school in **Manage menu** to use it again.
+
 ## Schoolwork
 
 A parent taps **Add schoolwork** for a lesson, homework, a test or a project:

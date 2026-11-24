@@ -141,7 +141,8 @@ test('school: the export brings subjects, kids and logs back', async () => {
   assert.deepEqual([log.memberId, log.minutes, log.notes], [file.schoolLogs[0].memberId, 25, 'Times tables']);
 });
 
-test('school: schoolwork is a chore with a subject; ticking it logs its minutes, undoing takes them back', async () => {
+test('school: schoolwork is a chore with a subject; ticking it logs its minutes, undoing takes them back', async ctx => {
+  ctx.mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-16T12:00:00Z') });
   const t = await setup();
   await t.req(`/api/school/kids/${t.maya.id}`, 'PUT', { mode: 'home', approveLogs: true });
   await t.req(`/api/school/kids/${t.leo.id}`, 'PUT', { mode: 'home' });

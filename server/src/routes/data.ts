@@ -1,3 +1,5 @@
+import { SchoolMenuSchema, SchoolMenuEntrySchema, SchoolMenuSettingsSchema } from '../school-menu-schemas.ts';
+import { readSchoolMenus, readSchoolMenuEntries, readSchoolMenuSettings } from '../school-menus.ts';
 import { MealDateSchema } from '../meal-schemas.ts';
 import { PlanningExportSchema } from '../weekly-planning-schemas.ts';
 import { exportWeeklyPlans } from '../weekly-planning.ts';
@@ -229,6 +231,9 @@ const ExportSchema = z
     upkeepLog: z.array(UpkeepEntrySchema.omit({ files: true })),
     // School (0150): subjects, which kids are in school, and every log of school time.
     schoolSubjects: z.array(SchoolSubjectSchema),
+    schoolMenus: z.array(SchoolMenuSchema),
+    schoolMenuEntries: z.array(SchoolMenuEntrySchema),
+    schoolMenuSettings: z.array(SchoolMenuSettingsSchema),
     schoolKids: z.array(SchoolKidSchema),
     schoolLogs: z.array(SchoolLogSchema),
     schoolGrades: z.array(SchoolGradeSchema),
@@ -463,6 +468,9 @@ dataRoutes.openapi(
         upkeepJobs: (await readJobs(db, '0000-01-01', (iso) => iso.slice(0, 10), { rawArchive: true })).map(({ nextDue: _n, status: _s, lastDone: _l, calendarEventStart: _e, ...j }) => j),
         upkeepLog: (await readLog(db)).map(({ files: _, ...e }) => e),
         schoolSubjects: await readSubjects(db, true),
+        schoolMenus: await readSchoolMenus(db),
+        schoolMenuEntries: await readSchoolMenuEntries(db),
+        schoolMenuSettings: await readSchoolMenuSettings(db),
         schoolKids: await readKids(db),
         schoolLogs: await readLogs(db),
         schoolGrades: await readGrades(db),
@@ -540,6 +548,9 @@ const ImportSchema = ExportSchema.extend({
   upkeepJobs: ExportSchema.shape.upkeepJobs.default([]),
   upkeepLog: ExportSchema.shape.upkeepLog.default([]),
   schoolSubjects: ExportSchema.shape.schoolSubjects.default([]),
+  schoolMenus: ExportSchema.shape.schoolMenus.default([]),
+  schoolMenuEntries: ExportSchema.shape.schoolMenuEntries.default([]),
+  schoolMenuSettings: ExportSchema.shape.schoolMenuSettings.default([]),
   schoolLogs: ExportSchema.shape.schoolLogs.default([]),
   schoolGrades: ExportSchema.shape.schoolGrades.default([]),
   schoolReportCards: ExportSchema.shape.schoolReportCards.default([]),
@@ -956,6 +967,12 @@ dataRoutes.openapi(
         { ...keepCreated, expr: { member_id: memberRef('member_id') } },
       ),
       // Before chores: schoolwork points at its subject.
+      ...upserts(db, 'school_menus', 'id', body.schoolMenus.map(m => ({ id: m.id, school_contact_id: m.schoolContactId, name: m.name, source_name: m.sourceName, source_url: m.sourceUrl, archived: m.archived ? 1 : 0, last_synced_at: m.lastSyncedAt, created_at: m.createdAt, updated_at: m.updatedAt })), { ...keepCreated, expr: { school_contact_id: "(SELECT id FROM contacts WHERE id = j.value->>'school_contact_id')" } }),
+      ...upserts(db, 'school_menu_entries', 'menu_id, date', body.schoolMenuEntries.map(e => ({ menu_id: e.menuId, date: e.date, availability: e.availability, title: e.title, description: e.description, source_url: e.sourceUrl, updated_at: e.updatedAt })), { where: 'EXISTS (SELECT 1 FROM school_menus WHERE id = excluded.menu_id)' }),
+      ...upserts(db, 'school_menu_settings', 'school_contact_id', body.schoolMenuSettings.map(m => ({ school_contact_id: m.schoolContactId, lunch_menu_id: m.lunchMenuId, use_for_meals: m.useForMeals ? 1 : 0, updated_at: new Date().toISOString() })), { where: 'EXISTS (SELECT 1 FROM contacts WHERE id = excluded.school_contact_id)', expr: {
+        lunch_menu_id: "(SELECT id FROM school_menus WHERE id = j.value->>'lunch_menu_id' AND school_contact_id = j.value->>'school_contact_id' AND archived = 0)",
+        use_for_meals: "CASE WHEN EXISTS (SELECT 1 FROM school_menus WHERE id = j.value->>'lunch_menu_id' AND school_contact_id = j.value->>'school_contact_id' AND archived = 0) THEN j.value->>'use_for_meals' ELSE 0 END",
+      } }),
       ...upserts(db, 'school_subjects', 'id', body.schoolSubjects.map((s) => ({ id: s.id, name: s.name, emoji: s.emoji, color: s.color, sort: s.sort, archived: s.archived ? 1 : 0, goal_hours: s.goalHours ?? null, created_at: new Date().toISOString() })), keepCreated),
       ...upserts(
         db,
@@ -1226,7 +1243,7 @@ dataRoutes.openapi(
       ['poll.changed', body.polls.length],
       ['outing.changed', body.outings.length + body.outingCategories.length],
       ['upkeep.changed', body.upkeepAreas.length + body.upkeepThings.length + body.upkeepJobs.length + body.upkeepLog.length],
-      ['school.changed', body.schoolSubjects.length + schoolKids.length + schoolLogs.length + schoolGrades.length + schoolReportCards.length + schoolDayMarks.length],
+      ['school.changed', body.schoolMenus.length + body.schoolMenuEntries.length + body.schoolMenuSettings.length + body.schoolSubjects.length + schoolKids.length + schoolLogs.length + schoolGrades.length + schoolReportCards.length + schoolDayMarks.length],
     ];
     for (const [type, n] of changed) if (n > 0) emit(c, type, { imported: n });
 
@@ -1273,7 +1290,7 @@ dataRoutes.openapi(
           polls: body.polls.length,
           outings: body.outings.length,
           upkeep: body.upkeepThings.length + body.upkeepJobs.length + body.upkeepLog.length,
-          school: body.schoolSubjects.length + schoolKids.length + schoolLogs.length + schoolGrades.length + schoolReportCards.length + schoolDayMarks.length,
+          school: body.schoolMenus.length + body.schoolMenuEntries.length + body.schoolMenuSettings.length + body.schoolSubjects.length + schoolKids.length + schoolLogs.length + schoolGrades.length + schoolReportCards.length + schoolDayMarks.length,
           mealShoppingSources: mealSources.length,
           itemMemory: body.itemMemory.length,
           storeAisles: body.storeAisles.length,

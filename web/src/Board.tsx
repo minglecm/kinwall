@@ -720,7 +720,7 @@ export default function Board({ show, onTap, chipHost }: { show: (e: EventInstan
             <EventLine key={`${e.id}:${e.start}`} e={e} tz={tz} byId={byId} onTap={ev => { setEarlierOpen(false); onTap(ev) }} past />)}</ul>
         </Sheet>}
 
-        {has('meals') && <Card title={t('Today’s meals')} area="meals" density={dense('meals')} what={MEALS}><TodaysMeals now={now} meals={data.meals.filter(m => m.date === today)} /></Card>}
+        {has('meals') && <Card title={t('Today’s meals')} area="meals" density={dense('meals')} what={MEALS}><TodaysMeals now={now} meals={data.meals.filter(m => m.date === today)} schoolLunches={(data.schoolLunches ?? []).filter(m => m.date === today)} /></Card>}
 
         {has('coming') && <Card title={t('Coming up')} area="coming" density={dense('coming')} foot={pollHost(shown) === 'coming' && <TodaySlot fixed={fixed} items={pollAlone} />}>
           {later.length === 0 ? <p className="snap-empty">{t('Nothing planned this week.')}</p> : later.map(d => {

@@ -1,3 +1,4 @@
+import { SchoolLunchFallbackSchema } from './school-menu-schemas.ts';
 import { PlanningApplySchema, PlanningSaveSchema, PlanningParamsSchema, PlanningQuerySchema, WeeklyPlanningSchema } from './weekly-planning-schemas.ts';
 import { EventFollowChoiceSchema, EventFollowSchema } from './routes/event-follows.ts';
 import { AnnouncementInputSchema, AnnouncementPatchSchema, AnnouncementSchema, AnnouncementsSchema } from './announcements.ts';
@@ -257,7 +258,7 @@ function listKind(kind: 'groceries' | 'shopping' | 'todo' | 'reusable' | 'pantry
 const TOOL_OUTPUT: Record<string, z.ZodRawShape> = {
   list_recipes: { recipes: z.array(RecipeSchema) }, get_recipe: { recipe: RecipeSchema }, create_recipe: { recipe: RecipeSchema }, update_recipe: { recipe: RecipeSchema }, rate_recipe: { recipe: RecipeSchema }, favorite_recipe: { recipe: RecipeSchema }, import_recipe: RecipeImportResultSchema.shape, import_recipe_from_url: RecipePreviewResultSchema.shape,
   list_restaurants: { restaurants: z.array(RestaurantSchema) }, get_restaurant: { restaurant: RestaurantSchema }, create_restaurant: { restaurant: RestaurantSchema }, update_restaurant: { restaurant: RestaurantSchema }, import_restaurant: RestaurantImportResultSchema.shape, set_meal_order: { meal: MealSchema }, ask_for_orders: { ok: z.boolean(), sent: z.number() },
-  list_meals: { meals: z.array(MealSchema) }, create_meal: { meal: MealSchema }, update_meal: { meal: MealSchema },
+  list_meals: { meals: z.array(MealSchema), schoolLunches: z.array(SchoolLunchFallbackSchema) }, create_meal: { meal: MealSchema }, update_meal: { meal: MealSchema },
   get_expiring_food: PantryExpiringSchema.shape, suggest_meals_from_pantry: PantrySuggestionsSchema.shape,
   get_meal_projection: ProjectionSchema.shape, apply_meal_projection: { added: z.number(), itemIds: z.array(z.string()), projection: ProjectionSchema },
   get_household: { settings: SettingsSchema, members: z.array(MemberSchema), calendars: z.array(CalendarSchema) },
@@ -624,10 +625,10 @@ function registerTools(server: McpServer, app: App, env: Env, auth: string) {
     const result = await call(app, env, auth, 'POST', `/api/meals/${encodeURIComponent(mealId)}/ask-orders`);
     return result.status >= 400 ? errorResult(result.json, 'failed to ask for orders') : okResult('Asked for orders', result.json as Record<string, unknown>);
   });
-  tool('list_meals', { title: 'Get meal plan', description: 'Read dated meals in an inclusive range. Start from on the household week start (weekStart from get_household: 0 Sunday, 1 Monday); omit to for that seven-day week.', inputSchema: { from: MealRangeSchema.shape.from, to: MealRangeSchema.shape.to.optional().describe('Inclusive end date; defaults to six days after from.') } }, async ({ from, to }) => {
+  tool('list_meals', { title: 'Get meal plan', description: 'Read saved meals and separate read-only schoolLunches defaults in an inclusive range. School defaults have no meal id; plan an ordinary lunch for their eaters to replace them. Start from on the household week start (weekStart from get_household: 0 Sunday, 1 Monday); omit to for that seven-day week.', inputSchema: { from: MealRangeSchema.shape.from, to: MealRangeSchema.shape.to.optional().describe('Inclusive end date; defaults to six days after from.') } }, async ({ from, to }) => {
     const end = to ?? new Date(Date.parse(`${from}T00:00:00Z`) + 6 * 86400000).toISOString().slice(0, 10);
-    const result = await call(app, env, auth, 'GET', `/api/meals?${new URLSearchParams({ from, to: end })}`);
-    return result.status >= 400 ? errorResult(result.json, 'failed to read meals') : okResult('Meal plan', { meals: result.json });
+    const result = await call(app, env, auth, 'GET', `/api/meal-plan?${new URLSearchParams({ from, to: end })}`);
+    return result.status >= 400 ? errorResult(result.json, 'failed to read meals') : okResult('Meal plan', result.json as Record<string, unknown>);
   });
   tool('create_meal', { title: 'Plan meal', description: 'Full access: plan a recipe, freeform meal, or dining out on a date. Does not create calendar events.', inputSchema: { ...MealInputSchema.shape, member: z.string().nullable().optional().describe('Who is cooking: assignee name (case-insensitive) or id; null leaves unassigned. eaterIds is who is eating. Overrides assigneeMemberId when provided.') } }, async ({ member, ...input }) => {
     try {

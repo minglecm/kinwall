@@ -1,3 +1,4 @@
+import { SchoolLunchFallbackSchema } from './school-menu-schemas.ts';
 // Shared zod-openapi schemas, reused across route files.
 import { z } from '@hono/zod-openapi';
 import { MealSchema } from './meal-schemas.ts';
@@ -1624,8 +1625,9 @@ export const SnapshotSchema = z
     items: z.array(SnapshotItemSchema), // assigned to them, open, due by `to` or high/urgent
     birthdays: z.array(SnapshotBirthdaySchema),
     meals: z.array(MealSchema),
+    schoolLunches: z.array(SchoolLunchFallbackSchema).default([]),
     tomorrow: z
-      .object({ date: z.string(), events: z.array(SnapshotEventSchema), items: z.array(SnapshotItemSchema), birthdays: z.array(SnapshotBirthdaySchema), meals: z.array(MealSchema) })
+      .object({ date: z.string(), events: z.array(SnapshotEventSchema), items: z.array(SnapshotItemSchema), birthdays: z.array(SnapshotBirthdaySchema), meals: z.array(MealSchema), schoolLunches: z.array(SchoolLunchFallbackSchema).default([]) })
       .nullable(), // day range only
     checkedIn: z.boolean(), // the member checked in today (household day)
     checkInPoints: z.number(), // what checking in earns now; 0 = check-ins are off
@@ -1660,6 +1662,7 @@ export const BoardSchema = z
     ),
     birthdays: z.array(SnapshotBirthdaySchema),
     meals: z.array(MealSchema),
+    schoolLunches: z.array(SchoolLunchFallbackSchema).default([]),
     booksDue: z.array(z.object({ id: z.string(), title: z.string(), borrowedFrom: z.string(), dueOn: z.string(), date: z.string(), overdue: z.boolean() })), // borrowed library books due by `to`; date: the board day (an overdue one shows today)
   })
   .openapi('Board');

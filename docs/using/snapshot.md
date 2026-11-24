@@ -102,3 +102,5 @@ A list item's **Assign to** field decides whose snapshot it appears in. Items wi
 ## Not yet
 
 * Getting your own snapshot as the morning push notification. <!-- TODO: per-device "Daily snapshot" push pref (needs notify.ts) --> The [daily summary](notifications.md#daily-summary) is still the household one, filtered by the device's members.
+
+When a school's menu is connected to Meals, a child's day and tomorrow's glance include school lunch when no lunch is planned for them. These read-only defaults say **From the school menu**; planning a lunch for the child replaces that default. See [School lunch defaults](meals.md#school-lunch-defaults).

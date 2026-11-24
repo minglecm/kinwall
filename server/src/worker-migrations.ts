@@ -1,3 +1,4 @@
+import m0157 from '../migrations/0157_school_menus.sql';
 import m0149 from '../migrations/0149_chore_dismissals.sql';
 import m0150 from '../migrations/0150_school.sql';
 import m0151 from '../migrations/0151_schoolwork.sql';
@@ -315,4 +316,5 @@ export const MIGRATIONS: Migration[] = [
   { name: '0154_school_days.sql', sql: m0154 },
   { name: '0155_chore_one_of.sql', sql: m0155 },
   { name: '0156_member_sees_family.sql', sql: m0156 },
+  { name: '0157_school_menus.sql', sql: m0157 },
 ];

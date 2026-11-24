@@ -1,3 +1,4 @@
+import { readSchoolLunches } from './school-menus.ts';
 import { schoolworkVisibleSql } from './schoolwork.ts';
 import { classifyDay, loadSchoolDays, schoolworkOff } from './school-days.ts';
 import { dueTravel, travelLegs, type TravelReminder } from './school-reminders.ts';
@@ -717,7 +718,7 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
       db.prepare(`SELECT event_id, title, priority FROM list_items WHERE done = 0 AND event_id IS NOT NULL ORDER BY ${priorityRankSql()}, sort, created_at`),
       // Food on a pantry list isn't a to-do: its use-by date stays out of the summary.
       db.prepare(`SELECT title, priority, member_id FROM list_items WHERE done = 0 AND due_date = ? AND list_id NOT IN (SELECT id FROM lists WHERE purpose = 'pantry') ORDER BY ${priorityRankSql()}, sort, created_at`).bind(today),
-      db.prepare("SELECT slot, title FROM meals WHERE date = ? ORDER BY CASE slot WHEN 'breakfast' THEN 0 WHEN 'lunch' THEN 1 WHEN 'dinner' THEN 2 ELSE 3 END, planned_time, created_at").bind(today),
+      db.prepare("SELECT slot, title, date, eater_ids FROM meals WHERE date = ? ORDER BY CASE slot WHEN 'breakfast' THEN 0 WHEN 'lunch' THEN 1 WHEN 'dinner' THEN 2 ELSE 3 END, planned_time, created_at").bind(today),
       db.prepare('SELECT id, member_ids FROM calendars WHERE enabled = 1'),
     ]);
     const events = eventRowsFrom([eventsRes, openRes]);
@@ -745,7 +746,9 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
     }
     const noSchool = await schoolworkOff(db, today, today, choresRes.results as ChoreRow[]);
     const chores = (choresRes.results as ChoreRow[]).filter(row => dueOnDate(row, today, tz) && !goalStates.get(row.id)?.full && !noSchool(row, today));
-    return { events: visibleEvents, linked, chores, meals: mealsRes.results as { slot: string; title: string }[], due: dueRes.results as { title: string; priority: string; member_id: string | null }[] };
+    const menuMeals = (mealsRes.results as { slot: 'breakfast' | 'lunch' | 'dinner' | 'snack'; title: string; date: string; eater_ids: string }[]).map(m => ({ ...m, eaterIds: parseMemberIds(m.eater_ids) }));
+    const schoolLunches = await readSchoolLunches(db, today, today, menuMeals, features);
+    return { events: visibleEvents, linked, chores, meals: menuMeals, schoolLunches, due: dueRes.results as { title: string; priority: string; member_id: string | null }[] };
   };
   let data: Awaited<ReturnType<typeof load>> | undefined;
   const fam = await familyLang(db);
@@ -771,6 +774,8 @@ async function runDailySummary(env: Env, db: KinwallDb, now: Date, tz: string, s
     let body = `${counts.join(' · ')}${first ? ` — ${first}` : ''}`;
     const slots: Record<string, string> = { breakfast: t('Breakfast'), lunch: t('Lunch'), dinner: t('Dinner'), snack: t('Snack') };
     if (features.meals && data.meals.length) body += `\n${t('Meals: {list}', { list: top3(data.meals.map(m => `${slots[m.slot] ?? m.slot} · ${m.title}`)) })}`;
+    const schoolLunches = data.schoolLunches.filter(m => !deviceMemberIds.length || m.eaterIds.some(id => deviceMemberIds.includes(id)));
+    if (schoolLunches.length) body += `\n${t('School lunch: {list}', { list: top3(schoolLunches.map(m => m.title)) })}`;
     if (todo.length) body += `\n${t("To do for today's events:")}\n${todo.join('\n')}`;
     // List items due today (any list), for this device's members like the chore nudge.
     const due = features.lists ? data.due.filter(r => memberMatch(deviceMemberIds, r.member_id ? [r.member_id] : [])) : [];

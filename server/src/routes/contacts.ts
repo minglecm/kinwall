@@ -280,7 +280,16 @@ contactsRoutes.openapi(createRoute({ method: 'post', path: '/api/contacts/merge'
   const target = await load(c.env.DB, id), source = await load(c.env.DB, sourceId);
   if (!target || !source) return c.json({ error: 'not found' }, 404);
   const merged = mergeContacts(inputOf(fromRow(target)), inputOf(fromRow(source)));
-  await c.env.DB.batch([updateStatement(c.env.DB, id, merged), c.env.DB.prepare('DELETE FROM contacts WHERE id = ?').bind(sourceId)]);
+  await c.env.DB.batch([
+    updateStatement(c.env.DB, id, merged),
+    c.env.DB.prepare('UPDATE school_menus SET school_contact_id = ? WHERE school_contact_id = ?').bind(id, sourceId),
+    c.env.DB.prepare('UPDATE school_kids SET school_contact_id = ? WHERE school_contact_id = ?').bind(id, sourceId),
+    c.env.DB.prepare(`INSERT INTO school_menu_settings (school_contact_id,lunch_menu_id,use_for_meals,updated_at)
+      SELECT ?1,lunch_menu_id,use_for_meals,updated_at FROM school_menu_settings WHERE school_contact_id = ?2
+      ON CONFLICT(school_contact_id) DO UPDATE SET lunch_menu_id=excluded.lunch_menu_id,use_for_meals=excluded.use_for_meals,updated_at=excluded.updated_at
+      WHERE school_menu_settings.lunch_menu_id IS NULL`).bind(id, sourceId),
+    c.env.DB.prepare('DELETE FROM contacts WHERE id = ?').bind(sourceId),
+  ]);
   contactEvent(c, 'merged', id);
   return c.json(fromRow((await load(c.env.DB, id))!), 200);
 });

@@ -140,3 +140,19 @@ button.school-plan-day { background: none; border: none; font: inherit; font-wei
 .school-setup-kid-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; } /* minmax: a long calendar name cuts off (…), never widens the sheet */
 /* Early release's two times: inputs line up even when a label wraps (a longer translation). */
 .school-half-row { align-items: end; }
+
+/* Published menu text keeps its lines without leaking long source words across the screen. */
+.school-menu-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.school-menu-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: .75rem 0; }
+.school-menu-heading .btn { flex: none; }
+.school-menu-heading h2 { margin: 0; font-size: 1.1rem; min-width: 0; overflow-wrap: anywhere; }
+.school-menu-days { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: .75rem; }
+.school-menu-day { padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); min-width: 0; }
+.school-menu-day h3 { margin: 0; font-size: .95rem; color: var(--text-dim); }
+.school-menu-settings { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius); padding: .75rem; margin: 1rem 0; }
+.school-menu-settings legend { padding: 0 .25rem; }
+.school-menu-row { min-height: 44px; overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .school-menu-heading { flex-wrap: wrap; }
+  .school-menu-heading .meal-actions { flex-wrap: wrap; }
+}

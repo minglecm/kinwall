@@ -1,3 +1,4 @@
+import type { SchoolLunchFallback } from './school-menus.ts'
 import { msg, t, tn } from './i18n.ts'
 import type { Lang } from './i18n.ts'
 import type { CalendarFilter } from './calendarFilter.ts'
@@ -1125,8 +1126,9 @@ export interface Snapshot {
   chores: SnapshotChore[]
   items: SnapshotItem[]
   birthdays: SnapshotBirthday[]
+  schoolLunches?: SchoolLunchFallback[]
   meals: Meal[] // [] while Meals is off
-  tomorrow: { date: string; events: SnapshotEvent[]; items: SnapshotItem[]; birthdays: SnapshotBirthday[]; meals: Meal[] } | null
+  tomorrow: { date: string; events: SnapshotEvent[]; items: SnapshotItem[]; birthdays: SnapshotBirthday[]; meals: Meal[]; schoolLunches?: SchoolLunchFallback[] } | null
   checkedIn: boolean // checked in today
   checkInPoints: number // what checking in earns; 0 = off
 }
@@ -1148,6 +1150,7 @@ export interface Board {
   schoolwork?: Board['chores'] // each kid's schoolwork today, counted like chores (not in `chores`)
   overdueChores?: OverdueChore[] // late chores from the last 7 days, not ticked, oldest first: a one-off's day or a repeating chore's last time (an older server sends none)
   birthdays: SnapshotBirthday[]
+  schoolLunches?: SchoolLunchFallback[]
   meals: Meal[] // today through `to`; [] while Meals is off
   booksDue: { id: string; title: string; borrowedFrom: string; dueOn: string; date: string; overdue: boolean }[] // borrowed library books due back; date: the board day (overdue ones show today)
 }
